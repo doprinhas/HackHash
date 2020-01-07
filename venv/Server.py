@@ -1,12 +1,14 @@
 from multiprocessing import Pool
 import asyncio
 import hashlib
+from datetime import datetime
 import struct as st
 from socket import *
 
+ANS_TIME_OUT = 10
+
 
 class Server:
-
     MESSAGE_FORMAT = '32sc40sc256s256s'
 
     def __init__(self, num_of_processes, listen_port):
@@ -25,29 +27,34 @@ class Server:
 
         while self.server_online:
             message, client_address = server_socket.recvfrom(586)
-            if (self.is_discover_message(message)):
+            if self.is_discover_message(message, '1'):
                 self.received_discover[client_address] = True
-            self.pool.apply_async(func=handle_massage, args=[message, client_address, self.get_port_index(), self.received_discover])
+            self.pool.apply_async(func=handle_massage,
+                                  args=[message, client_address, self.get_port_index(),
+                                        client_address in self.received_discover.keys()])
+            if self.is_discover_message(message, '3'):
+                del self.received_discover[client_address]
 
-    def is_discover_message(self, input):
+    def is_discover_message(self, input, type):
         if len(input) != 586:
             return False
         unpacked_message = st.unpack(MESSAGE_FORMAT, input)
         unpacked_message = [mess.decode('utf-8') for mess in unpacked_message]
-        if ord('1') == ord(unpacked_message[1]):
+        if ord(type) == ord(unpacked_message[1]):
             return True
         return False
 
     def get_port_index(self):
         index = self.current_send_port_index
         self.current_send_port_index += 1
-        if (self.current_send_port_index == len(self.ports)):
+        if self.current_send_port_index == len(self.ports):
             self.current_send_port_index = 0
         return self.ports[index]
 
     def close(self):
         self.pool.close()
         self.server_online = False
+
 
 
 DISCOVER_MESSAGE = '1'
@@ -64,20 +71,21 @@ STRING_LENGHT_INDEX = 3
 START_STRING_INDEX = 4
 END_STRING_INDEX = 5
 
+
 # received_discover = {}
 
-def handle_massage(message, client_address, send_port, received_discover):
+def handle_massage(message, client_address, send_port, is_sent_discover):
     if not is_input_valid(message):
         return send_error(client_address, send_port)
     message_tup = st.unpack(MESSAGE_FORMAT, message)
     message_tup = [mess.decode('utf-8') for mess in message_tup]
 
+    print(client_address)
+
     if message_tup[TYPE_INDEX] == DISCOVER_MESSAGE:
         send_offer_to_client(message_tup, client_address, send_port)
-        return client_address
-    elif message_tup[TYPE_INDEX] == REQUEST_MESSAGE and client_address in received_discover.keys():
+    elif message_tup[TYPE_INDEX] == REQUEST_MESSAGE and is_sent_discover:
         search_hash(message_tup, client_address, send_port)
-        del received_discover[client_address]
     else:
         send_error(client_address, send_port)
 
@@ -105,7 +113,7 @@ def is_input_valid(input):
 
 def get_packed_message(message_format, message_content_string_tup):
     fields_in_bytes = [to_bytes(field) for field in message_content_string_tup]
-    packed_message = st.pack(message_format, fields_in_bytes[0], fields_in_bytes[1], fields_in_bytes[2],\
+    packed_message = st.pack(message_format, fields_in_bytes[0], fields_in_bytes[1], fields_in_bytes[2], \
                              fields_in_bytes[3], fields_in_bytes[4], fields_in_bytes[5])
     return packed_message
 
@@ -150,8 +158,8 @@ def search_hash(message_tup, client_address, port):
     end_str = get_next_string(end_str)
 
     check_str = str(message_tup[START_STRING_INDEX]).replace(' ', '')
-
-    while check_str != end_str:
+    time = datetime.now()
+    while check_str != end_str and (datetime.now() - time).seconds <= ANS_TIME_OUT:
         hash_to = hashlib.sha1(to_bytes(check_str)).hexdigest()
         if (hash_to == hash):
             return send_ack(check_str, message_tup, client_address, port)
