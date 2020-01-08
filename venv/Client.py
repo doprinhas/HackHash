@@ -15,8 +15,8 @@ class Client:
     EMPTY_HASH_MESSAGE = '@*40'
     EMPTY_LENGTH = '0'
     EMPTY_START = 'A'
-    EMPTY_END = 'O'
-    MESSAGE_FORMAT = '32sc40sc256s256s'
+    EMPTY_END = 'A'
+    MESSAGE_FORMAT = '32sc40sc'
 
     def __init__(self):
         self.client_socket = socket(AF_INET, SOCK_DGRAM)
@@ -38,21 +38,26 @@ class Client:
         while (datetime.now() - time).seconds <= self.REQ_TIME_OUT:
             try:
                 modified_message, server_address = self.client_socket.recvfrom(586)
-                modified_message = struct.unpack(Client.MESSAGE_FORMAT, modified_message)
+                last_field_length = (len(modified_message) - 74) / 2
+                modified_message = struct.unpack(self.MESSAGE_FORMAT + str(last_field_length) + 's' +
+                                                 str(last_field_length) + 's', modified_message)
                 if modified_message[1].decode("utf-8") == '2':
                     self.server_list.append(server_address[0])
             except:
                 pass
 
         # Send request message
-        self.send_request()
+        if len(self.server_list) > 0:
+            self.send_request()
 
         got_answer = False
         time = datetime.now()
         while not got_answer and (datetime.now() - time).seconds <= self.ANS_TIME_OUT:
             try:
                 modified_message, server_address = self.client_socket.recvfrom(586)
-                server_answer = (struct.unpack(Client.MESSAGE_FORMAT, modified_message))
+                last_field_length = (len(modified_message) - 74) / 2
+                server_answer = (struct.unpack(self.MESSAGE_FORMAT + str(last_field_length) + 's' +
+                                               str(last_field_length) + 's', modified_message))
                 if server_answer[1].decode("utf-8") == '4':
                     self.encrypted_word = server_answer[4].decode("utf-8")
                     got_answer = True
@@ -71,22 +76,21 @@ class Client:
     def send_broadcast_message(self):
         self.client_socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
         self.client_socket.sendto(
-            struct.pack(Client.MESSAGE_FORMAT, bytes(self.team_name, 'utf-8'), bytes(Client.DISCOVER_MESSAGE, 'utf-8'), \
-                        bytes(Client.EMPTY_HASH_MESSAGE, 'utf-8') \
-                        , bytes(Client.EMPTY_LENGTH, 'utf-8'), bytes(Client.EMPTY_START, 'utf-8'), \
-                        bytes(Client.EMPTY_END, 'utf-8')), ('255.255.255.255', 3117))
+            struct.pack(Client.MESSAGE_FORMAT + 'ss', bytes(self.team_name, 'utf-8'), bytes(self.DISCOVER_MESSAGE, 'utf-8'),
+                        bytes(self.EMPTY_HASH_MESSAGE, 'utf-8')
+                        , bytes(self.EMPTY_LENGTH, 'utf-8'), bytes(self.EMPTY_START, 'utf-8'),
+                        bytes(self.EMPTY_END, 'utf-8')), ('255.255.255.255', 3117))
 
     def send_request(self):
 
-        domains = self.divide_two_domains(int(self.message_length), self.server_list.__len__())
+        domains = self.divide_two_domains(int(self.message_length), len(self.server_list))
         i = 0
         for server in self.server_list:
-            packed_message = struct.pack(Client.MESSAGE_FORMAT, bytes(self.team_name, 'utf-8'), \
-                                         bytes(Client.REQUEST_MESSAGE, 'utf-8'), \
-                                         bytes(self.hash_code, 'utf-8'), \
-                                         bytes(chr(int(self.message_length)), 'utf-8'),
-                                         bytes(domains[i] + " " * (256 - int(self.message_length)), 'utf-8'), \
-                                         bytes(bytes(domains[i + 1] + " " * (256 - int(self.message_length)), 'utf-8')))
+            packed_message = struct.pack(self.MESSAGE_FORMAT + str(len(domains[i])) + 's' + str(len(domains[i])) + 's',
+                                         bytes(self.team_name, 'utf-8'), bytes(Client.REQUEST_MESSAGE, 'utf-8'),
+                                         bytes(self.hash_code, 'utf-8'), bytes(chr(int(self.message_length)), 'utf-8'),
+                                         bytes(domains[i], 'utf-8'),
+                                         bytes(bytes(domains[i + 1], 'utf-8')))
 
             self.client_socket.sendto(packed_message, (server, 3117))
             i = i + 2

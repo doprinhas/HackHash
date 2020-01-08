@@ -36,9 +36,11 @@ class Server:
                 del self.received_discover[client_address]
 
     def is_discover_message(self, input, type):
-        if len(input) != 586:
+        if len(input) <= 586:
             return False
-        unpacked_message = st.unpack(MESSAGE_FORMAT, input)
+        last_field_length = (len(input) - 74) / 2
+        unpacked_message = st.unpack(MESSAGE_FORMAT + str(last_field_length) + 's' + str(last_field_length) + 's',
+                                     input)
         unpacked_message = [mess.decode('utf-8') for mess in unpacked_message]
         if ord(type) == ord(unpacked_message[1]):
             return True
@@ -56,18 +58,17 @@ class Server:
         self.server_online = False
 
 
-
 DISCOVER_MESSAGE = '1'
 OFFER_MESSAGE = '2'
 REQUEST_MESSAGE = '3'
 ACK_MESSAGE = '4'
 NACK_MESSAGE = '5'
 
-MESSAGE_FORMAT = '32sc40sc256s256s'
+MESSAGE_FORMAT = '32sc40sc'
 
 TYPE_INDEX = 1
 HASH_INDEX = 2
-STRING_LENGHT_INDEX = 3
+STRING_LENGTH_INDEX = 3
 START_STRING_INDEX = 4
 END_STRING_INDEX = 5
 
@@ -91,9 +92,10 @@ def handle_massage(message, client_address, send_port, is_sent_discover):
 
 
 def is_input_valid(input):
-    if len(input) != 586:
+    if len(input) <= 586:
         return False
-    unpacked_message = st.unpack(MESSAGE_FORMAT, input)
+    last_field_length = (len(input) - 74)/2
+    unpacked_message = st.unpack(MESSAGE_FORMAT + str(last_field_length) + 's' + str(last_field_length) + 's', input)
     unpacked_message = [mess.decode('utf-8') for mess in unpacked_message]
     if ord('1') == ord(unpacked_message[1]):
         return True
@@ -113,7 +115,7 @@ def is_input_valid(input):
 
 def get_packed_message(message_format, message_content_string_tup):
     fields_in_bytes = [to_bytes(field) for field in message_content_string_tup]
-    packed_message = st.pack(message_format, fields_in_bytes[0], fields_in_bytes[1], fields_in_bytes[2], \
+    packed_message = st.pack(message_format, fields_in_bytes[0], fields_in_bytes[1], fields_in_bytes[2],
                              fields_in_bytes[3], fields_in_bytes[4], fields_in_bytes[5])
     return packed_message
 
@@ -126,25 +128,25 @@ def send_message(to, byte_message, port):
 
 
 def send_error(client_address, port):
-    message = b"invalid args"
-    send_message(client_address, message, port)
+    message = 'Invalid Arguments' + ' ' * 64
+    send_message(client_address, to_bytes(message), port)
 
 
 def send_offer_to_client(message_tup, client_address, port):
-    message_content = [message_tup[0], OFFER_MESSAGE, ' ' * 40, '0', ' ' * 256, ' ' * 256]
-    message = get_packed_message(MESSAGE_FORMAT, message_content)
+    message_content = [message_tup[0], OFFER_MESSAGE, ' ' * 40, '0', ' ' * 1, ' ' * 1]
+    message = get_packed_message(MESSAGE_FORMAT + 'ss', message_content)
     send_message(client_address, message, port)
 
 
 def send_ack(ans, message_tup, client_address, port):
-    message_content = [message_tup[0], ACK_MESSAGE, ' ' * 40, '0', ans + ' ' * (256 - len(ans)), ' ' * 256]
-    message = get_packed_message(MESSAGE_FORMAT, message_content)
+    message_content = [message_tup[0], ACK_MESSAGE, ' ' * 40, '0', ans, ' ' * len(ans)]
+    message = get_packed_message(MESSAGE_FORMAT + str(len(ans)) + 'ss', message_content)
     send_message(client_address, message, port)
 
 
 def send_nack(message_tup, client_address, port):
-    message_content = [message_tup[0], NACK_MESSAGE, ' ' * 40, '0', ' ' * 256, ' ' * 256]
-    message = get_packed_message(MESSAGE_FORMAT, message_content)
+    message_content = [message_tup[0], NACK_MESSAGE, ' ' * 40, '0', ' ' * 1, ' ' * 1]
+    message = get_packed_message(MESSAGE_FORMAT + 'ss', message_content)
     send_message(client_address, message, port)
 
 
@@ -161,7 +163,7 @@ def search_hash(message_tup, client_address, port):
     time = datetime.now()
     while check_str != end_str and (datetime.now() - time).seconds <= ANS_TIME_OUT:
         hash_to = hashlib.sha1(to_bytes(check_str)).hexdigest()
-        if (hash_to == hash):
+        if hash_to == hash:
             return send_ack(check_str, message_tup, client_address, port)
         check_str = get_next_string(check_str)
     send_nack(message_tup, client_address, port)
