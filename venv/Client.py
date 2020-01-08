@@ -47,6 +47,7 @@ class Client:
                 pass
 
         # Send request message
+        print(len(self.server_list))
         if len(self.server_list) > 0:
             self.send_request()
 
