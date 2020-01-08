@@ -9,7 +9,7 @@ ANS_TIME_OUT = 10
 
 
 class Server:
-    MESSAGE_FORMAT = '32sc40sc'
+    MESSAGE_FORMAT = '32sc40sc256s256s'
 
     def __init__(self, num_of_processes, listen_port):
         self.server_online = True
@@ -29,19 +29,16 @@ class Server:
             message, client_address = server_socket.recvfrom(586)
             if self.is_discover_message(message, '1'):
                 self.received_discover[client_address] = True
-            # self.pool.apply_async(func=handle_massage,
-            #                       args=[message, client_address, self.get_port_index(),
-            #                             client_address in self.received_discover.keys()])
-            handle_massage(message, client_address, self.get_port_index(), client_address in self.received_discover.keys())
+            self.pool.apply_async(func=handle_massage,
+                                  args=[message, client_address, self.get_port_index(),
+                                        client_address in self.received_discover.keys()])
             if self.is_discover_message(message, '3'):
                 del self.received_discover[client_address]
 
     def is_discover_message(self, input, type):
-        if len(input) <= 586:
+        if len(input) != 586:
             return False
-        last_field_length = int((len(input) - 74)/2)
-        unpacked_message = st.unpack(self.MESSAGE_FORMAT + Str(last_field_length) + 's' + Str(last_field_length) + 's',
-                                     input)
+        unpacked_message = st.unpack(MESSAGE_FORMAT, input)
         unpacked_message = [mess.decode('utf-8') for mess in unpacked_message]
         if ord(type) == ord(unpacked_message[1]):
             return True
@@ -59,17 +56,18 @@ class Server:
         self.server_online = False
 
 
+
 DISCOVER_MESSAGE = '1'
 OFFER_MESSAGE = '2'
 REQUEST_MESSAGE = '3'
 ACK_MESSAGE = '4'
 NACK_MESSAGE = '5'
 
-MESSAGE_FORMAT = '32sc40sc'
+MESSAGE_FORMAT = '32sc40sc256s256s'
 
 TYPE_INDEX = 1
 HASH_INDEX = 2
-STRING_LENGTH_INDEX = 3
+STRING_LENGHT_INDEX = 3
 START_STRING_INDEX = 4
 END_STRING_INDEX = 5
 
@@ -79,10 +77,7 @@ END_STRING_INDEX = 5
 def handle_massage(message, client_address, send_port, is_sent_discover):
     if not is_input_valid(message):
         return send_error(client_address, send_port)
-
-    last_field_length = int((len(input) - 74)/2)
-
-    message_tup = st.unpack(MESSAGE_FORMAT + str(last_field_length) + 's' + str(last_field_length) + 's', message)
+    message_tup = st.unpack(MESSAGE_FORMAT, message)
     message_tup = [mess.decode('utf-8') for mess in message_tup]
 
     print(client_address)
@@ -96,11 +91,9 @@ def handle_massage(message, client_address, send_port, is_sent_discover):
 
 
 def is_input_valid(input):
-    if len(input) > 586:
+    if len(input) != 586:
         return False
-    last_field_length = int((len(input) - 74)/2)
-    format = MESSAGE_FORMAT + string(last_field_length) + 's' + string(last_field_length) + 's'
-    unpacked_message = st.unpack(format, input)
+    unpacked_message = st.unpack(MESSAGE_FORMAT, input)
     unpacked_message = [mess.decode('utf-8') for mess in unpacked_message]
     if ord('1') == ord(unpacked_message[1]):
         return True
@@ -120,7 +113,7 @@ def is_input_valid(input):
 
 def get_packed_message(message_format, message_content_string_tup):
     fields_in_bytes = [to_bytes(field) for field in message_content_string_tup]
-    packed_message = st.pack(message_format, fields_in_bytes[0], fields_in_bytes[1], fields_in_bytes[2],
+    packed_message = st.pack(message_format, fields_in_bytes[0], fields_in_bytes[1], fields_in_bytes[2], \
                              fields_in_bytes[3], fields_in_bytes[4], fields_in_bytes[5])
     return packed_message
 
@@ -133,25 +126,25 @@ def send_message(to, byte_message, port):
 
 
 def send_error(client_address, port):
-    message = 'Invalid Arguments' + ' ' * 64
-    send_message(client_address, to_bytes(message), port)
+    message = b"invalid args"
+    send_message(client_address, message, port)
 
 
 def send_offer_to_client(message_tup, client_address, port):
-    message_content = [message_tup[0], OFFER_MESSAGE, ' ' * 40, '0', ' ' * 1, ' ' * 1]
-    message = get_packed_message(MESSAGE_FORMAT + 'ss', message_content)
+    message_content = [message_tup[0], OFFER_MESSAGE, ' ' * 40, '0', ' ' * 256, ' ' * 256]
+    message = get_packed_message(MESSAGE_FORMAT, message_content)
     send_message(client_address, message, port)
 
 
 def send_ack(ans, message_tup, client_address, port):
-    message_content = [message_tup[0], ACK_MESSAGE, ' ' * 40, '0', ans, ' ' * len(ans)]
-    message = get_packed_message(MESSAGE_FORMAT + str(len(ans)) + 'ss', message_content)
+    message_content = [message_tup[0], ACK_MESSAGE, ' ' * 40, '0', ans + ' ' * (256 - len(ans)), ' ' * 256]
+    message = get_packed_message(MESSAGE_FORMAT, message_content)
     send_message(client_address, message, port)
 
 
 def send_nack(message_tup, client_address, port):
-    message_content = [message_tup[0], NACK_MESSAGE, ' ' * 40, '0', ' ' * 1, ' ' * 1]
-    message = get_packed_message(MESSAGE_FORMAT + 'ss', message_content)
+    message_content = [message_tup[0], NACK_MESSAGE, ' ' * 40, '0', ' ' * 256, ' ' * 256]
+    message = get_packed_message(MESSAGE_FORMAT, message_content)
     send_message(client_address, message, port)
 
 
