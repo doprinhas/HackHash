@@ -9,7 +9,7 @@ ANS_TIME_OUT = 10
 
 
 class Server:
-    MESSAGE_FORMAT = '32sc40sc256s256s'
+    MESSAGE_FORMAT = '32sc40sc'
 
     def __init__(self, num_of_processes, listen_port):
         self.server_online = True
@@ -39,7 +39,7 @@ class Server:
         if len(input) <= 586:
             return False
         last_field_length = (len(input) - 74) / 2
-        unpacked_message = st.unpack(MESSAGE_FORMAT + str(last_field_length) + 's' + str(last_field_length) + 's',
+        unpacked_message = st.unpack(self.MESSAGE_FORMAT + str(last_field_length) + 's' + str(last_field_length) + 's',
                                      input)
         unpacked_message = [mess.decode('utf-8') for mess in unpacked_message]
         if ord(type) == ord(unpacked_message[1]):
