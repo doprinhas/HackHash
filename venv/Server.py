@@ -29,17 +29,18 @@ class Server:
             message, client_address = server_socket.recvfrom(586)
             if self.is_discover_message(message, '1'):
                 self.received_discover[client_address] = True
-            self.pool.apply_async(func=handle_massage,
-                                  args=[message, client_address, self.get_port_index(),
-                                        client_address in self.received_discover.keys()])
+            # self.pool.apply_async(func=handle_massage,
+            #                       args=[message, client_address, self.get_port_index(),
+            #                             client_address in self.received_discover.keys()])
+            handle_massage(message, client_address, self.get_port_index(), client_address in self.received_discover.keys())
             if self.is_discover_message(message, '3'):
                 del self.received_discover[client_address]
 
     def is_discover_message(self, input, type):
         if len(input) <= 586:
             return False
-        last_field_length = (len(input) - 74) / 2
-        unpacked_message = st.unpack(self.MESSAGE_FORMAT + str(last_field_length) + 's' + str(last_field_length) + 's',
+        last_field_length = int((len(input) - 74)/2)
+        unpacked_message = st.unpack(self.MESSAGE_FORMAT + Str(last_field_length) + 's' + Str(last_field_length) + 's',
                                      input)
         unpacked_message = [mess.decode('utf-8') for mess in unpacked_message]
         if ord(type) == ord(unpacked_message[1]):
@@ -78,7 +79,10 @@ END_STRING_INDEX = 5
 def handle_massage(message, client_address, send_port, is_sent_discover):
     if not is_input_valid(message):
         return send_error(client_address, send_port)
-    message_tup = st.unpack(MESSAGE_FORMAT, message)
+
+    last_field_length = int((len(input) - 74)/2)
+
+    message_tup = st.unpack(MESSAGE_FORMAT + str(last_field_length) + 's' + str(last_field_length) + 's', message)
     message_tup = [mess.decode('utf-8') for mess in message_tup]
 
     print(client_address)
@@ -92,10 +96,11 @@ def handle_massage(message, client_address, send_port, is_sent_discover):
 
 
 def is_input_valid(input):
-    if len(input) <= 586:
+    if len(input) > 586:
         return False
-    last_field_length = (len(input) - 74)/2
-    unpacked_message = st.unpack(MESSAGE_FORMAT + str(last_field_length) + 's' + str(last_field_length) + 's', input)
+    last_field_length = int((len(input) - 74)/2)
+    format = MESSAGE_FORMAT + string(last_field_length) + 's' + string(last_field_length) + 's'
+    unpacked_message = st.unpack(format, input)
     unpacked_message = [mess.decode('utf-8') for mess in unpacked_message]
     if ord('1') == ord(unpacked_message[1]):
         return True

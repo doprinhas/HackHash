@@ -24,7 +24,7 @@ class Client:
         self.hash_code = ''
         self.server_list = []
         self.encrypted_word = ''
-        self.team_name = 'od' * 16
+        self.team_name = 'f-society' + ' ' * 23
 
         # serverName = "hostname"
 
@@ -38,7 +38,7 @@ class Client:
         while (datetime.now() - time).seconds <= self.REQ_TIME_OUT:
             try:
                 modified_message, server_address = self.client_socket.recvfrom(586)
-                last_field_length = (len(modified_message) - 74) / 2
+                last_field_length = int((len(input) - 74)/2)
                 modified_message = struct.unpack(self.MESSAGE_FORMAT + str(last_field_length) + 's' +
                                                  str(last_field_length) + 's', modified_message)
                 if modified_message[1].decode("utf-8") == '2':
@@ -56,7 +56,7 @@ class Client:
         while not got_answer and (datetime.now() - time).seconds <= self.ANS_TIME_OUT:
             try:
                 modified_message, server_address = self.client_socket.recvfrom(586)
-                last_field_length = (len(modified_message) - 74) / 2
+                last_field_length = int((len(input) - 74) / 2)
                 server_answer = (struct.unpack(self.MESSAGE_FORMAT + str(last_field_length) + 's' +
                                                str(last_field_length) + 's', modified_message))
                 if server_answer[1].decode("utf-8") == '4':
@@ -77,7 +77,7 @@ class Client:
     def send_broadcast_message(self):
         self.client_socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
         self.client_socket.sendto(
-            struct.pack(Client.MESSAGE_FORMAT + 'ss', bytes(self.team_name, 'utf-8'), bytes(self.DISCOVER_MESSAGE, 'utf-8'),
+            struct.pack(self.MESSAGE_FORMAT + 'ss', bytes(self.team_name, 'utf-8'), bytes(self.DISCOVER_MESSAGE, 'utf-8'),
                         bytes(self.EMPTY_HASH_MESSAGE, 'utf-8')
                         , bytes(self.EMPTY_LENGTH, 'utf-8'), bytes(self.EMPTY_START, 'utf-8'),
                         bytes(self.EMPTY_END, 'utf-8')), ('255.255.255.255', 3117))
